@@ -47,7 +47,6 @@ except Exception as e:
 # --- 2. Initialize Computer Vision (OpenCV) ---
 # Install with: pip install opencv-python
 
-# Open a connection to your webcam (0 is usually the default)
 cap = cv2.VideoCapture(1)
 cap.set(cv2.CAP_PROP_FRAME_WIDTH, 1280)
 cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 720)
@@ -56,54 +55,39 @@ if not cap.isOpened():
     print("Error: Could not open webcam.")
     exit()
 
-# --- Create the Background Subtractor ---
 back_sub = cv2.createBackgroundSubtractorKNN(detectShadows=False)
 
 print("\nWebcam opened. Learning the background...")
 print("Please keep the camera perfectly still.")
 print("Press 'q' in the video window to quit.")
 
-# --- 3. Main Tracking & Trading Loop ---
 last_log_time = time.time()
-LOG_INTERVAL = 5 # seconds
+LOG_INTERVAL = 5
 
-pending_stock = None       # the stock selected but not yet traded
-pending_decision = None    # BUY or SELL
-pending_start_time = None  # when the stock was selected
-LOG_INTERVAL = 5           # seconds
+pending_stock = None       
+pending_decision = None   
+pending_start_time = None 
+LOG_INTERVAL = 5           
 current_stock = None
 
-font_path = "arial.ttf"  # replace with path to a TTF font you like
+font_path = "arial.ttf"  
 font_size = 40
 font = ImageFont.truetype(font_path, font_size)
 market_open = False
 
 while True:
-    # Read a frame from the webcam
     ret, frame = cap.read()
     if not ret:
         print("Error: Failed to grab frame.")
         break
 
-    # Flip the frame horizontally (webcams are often mirrored)
+   
     frame = cv2.flip(frame, 1)
-    
-    # Get frame dimensions
     frame_height, frame_width, _ = frame.shape
-    mid_x = frame_width // 2 # Integer division
+    mid_x = frame_width // 2 
     
-    # --- Fish Tracking Logic (MODIFIED) ---
 
-    # 1. Apply the background subtractor
     fg_mask = back_sub.apply(frame)
-
-    # --- 🔽 🔽 🔽 START TUNING HERE 🔽 🔽 🔽 ---
-
-    # 2. Clean up the mask to remove noise
-    
-    # --- PARAMETER 1: Motion Sensitivity (Threshold) ---
-    # Lower this value (e.g., 150) if your fish is spotty or faint.
-    # Raise this value (e.g., 220) if you see too much background noise.
     MOTION_SENSITIVITY = 220
     ret, thresh_mask = cv2.threshold(fg_mask, MOTION_SENSITIVITY, 255, cv2.THRESH_BINARY)
     
@@ -144,13 +128,12 @@ while True:
 
     text_width = 100
     x_center = (frame_width - text_width) // 2
-    y_position = 50  # same as before, near top
+    y_position = 50  
 
-    # Optionally show the waiting stock or "WAITING"
     frame_pil = Image.fromarray(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB))
     draw = ImageDraw.Draw(frame_pil)
 
-    shadow_offset = 2  # for shadow effect
+    shadow_offset = 3  
 
     if market_open:
         if pending_start_time:
@@ -162,12 +145,8 @@ while True:
             x_buy = mid_x // 4
             y_buy = 50
 
-            # Shadow
             draw.text((x_buy + shadow_offset, y_buy + shadow_offset), buy_text, font=font, fill=(0, 0, 0))
-            # Main
             draw.text((x_buy, y_buy), buy_text, font=font, fill=(34, 197, 94))  # green
-
-            # --- SELL text (right side) ---
             sell_text = "SELL"
             bbox = draw.textbbox((0, 0), sell_text, font=font)
             sell_width = bbox[2] - bbox[0]
@@ -182,12 +161,9 @@ while True:
             text_height = bbox[3] - bbox[1]
             x_center = (frame_width - text_width) // 2
             y_position = 50
-            # Shadow
             draw.text((x_center + shadow_offset, y_position + shadow_offset), wait_text, font=font, fill=(0,0,0))
-            # Main text
             draw.text((x_center, y_position), wait_text, font=font, fill=(239,68,68))  # red
 
-        # --- DECISION text at bottom left ---
         decision_text = f"DECISION: {current_decision}"
         bbox = draw.textbbox((0,0), decision_text, font=font)
         text_width = bbox[2] - bbox[0]
@@ -201,15 +177,11 @@ while True:
             text_height = bbox[3] - bbox[1]
             x_center = (frame_width - text_width) // 2
             y_position = 50
-            # Shadow
             draw.text((x_center + shadow_offset, y_position + shadow_offset), wait_text, font=font, fill=(0,0,0))
-            # Main text
             draw.text((x_center, y_position), wait_text, font=font, fill=(239,68,68))  # red
 
-    # --- Convert PIL back to OpenCV ---
     frame = cv2.cvtColor(np.array(frame_pil), cv2.COLOR_RGB2BGR)
 
-    # --- Now show frame in OpenCV ---
     cv2.imshow("Debug Mask - What the Bot Sees", clean_mask)
     cv2.imshow("The Fin-fluencer BOT (Press 'q' to quit)", frame)
 
@@ -220,13 +192,11 @@ while True:
     current_time = now_est.time()
     current_weekday = now_est.weekday()
 
-    # Market hours: 9:30 AM to 4:00 PM ET, Monday to Friday
     market_open = datetime.time(9, 30)
     market_close = datetime.time(16, 0)
 
     if current_weekday < 5 and market_open <= current_time <= market_close:
         market_open = True
-        # --- 1. Fish enters BUY/SELL zone ---
         if current_decision != "HOLD":
             if pending_start_time is None:
                 pending_start_time = time.time()
@@ -238,9 +208,7 @@ while True:
             pending_decision = None
             current_stock = None
 
-        # --- 2. Execute trade after LOG_INTERVAL ---
         if pending_start_time and (time.time() - pending_start_time >= LOG_INTERVAL):
-            # Fetch price
             try:
                 stock_data = yf.download(tickers=current_stock, period='1d', interval='1m', progress=False)
                 last_price = float(stock_data['Close'].iloc[-1]) if not stock_data.empty else None
@@ -248,7 +216,6 @@ while True:
                 last_price = None
                 print(f"Error fetching price for {current_stock}: {e}")
 
-            # Log to Firestore
             decision_data = {
                 "decision": pending_decision,
                 "stock": current_stock,
@@ -269,7 +236,6 @@ while True:
             pending_start_time = None
             pending_decision = None
     else:
-        # Outside market hours, reset any pending trades
         pending_start_time = None
         pending_decision = None
         current_stock = None
