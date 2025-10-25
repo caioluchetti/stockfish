@@ -171,7 +171,7 @@ while True:
         draw.text((20 + shadow_offset, frame_height - 50 + shadow_offset), decision_text, font=font, fill=(0,0,0))  # shadow
         draw.text((20, frame_height - 50), decision_text, font=font, fill=(255,255,255))  # main
     else:
-            wait_text = f"NOT OPERATING, MARKET IS CLOSED \n GOOD WEEKEND"
+            wait_text = f"MARKET CLOSED – SEE YOU MONDAY"
             bbox = draw.textbbox((0, 0), wait_text, font=font)
             text_width = bbox[2] - bbox[0]
             text_height = bbox[3] - bbox[1]
