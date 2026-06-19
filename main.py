@@ -5,6 +5,7 @@ import random
 import time
 import signal
 import sys
+import threading
 
 import cv2
 
@@ -33,6 +34,8 @@ def parse_args():
     parser.add_argument("--debug", action="store_true", help="Enable debug logging")
     parser.add_argument("--camera", type=int, default=0, help="Camera device ID (default: 0)")
     parser.add_argument("--broker", choices=["alpaca", "none"], default="none", help="Broker for order execution")
+    parser.add_argument("--web", action="store_true", help="Start web dashboard (http://localhost:5000)")
+    parser.add_argument("--web-port", type=int, default=5000, help="Web dashboard port")
     return parser.parse_args()
 
 
@@ -85,6 +88,22 @@ def main():
         broker = AlpacaBroker(config.alpaca)
     else:
         broker = NoOpBroker()
+
+    web_frame_buffer = {"frame": None}
+    web_lock = threading.Lock()
+
+    if args.web:
+        try:
+            from src.web.app import set_frame_buffer, set_data_dir, start_server
+
+            set_frame_buffer(web_frame_buffer, web_lock)
+            set_data_dir(config.data_dir)
+            start_server(port=args.web_port)
+        except ImportError as e:
+            logger.error("Flask not installed. Run: pip install flask")
+            logger.error("Web UI disabled.")
+        except Exception as e:
+            logger.error("Web UI failed to start: %s", e)
 
     camera = None
     if not config.simulate:
@@ -184,6 +203,11 @@ def main():
                 fish_y,
                 market_is_open,
             )
+
+            with web_lock:
+                web_frame_buffer["frame"] = frame
+                web_frame_buffer["market_open"] = market_is_open
+                web_frame_buffer["decision"] = current_decision
 
             if not config.simulate and fg_mask is not None:
                 cv2.imshow("Debug Mask - What the Bot Sees", clean_mask)

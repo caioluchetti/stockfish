@@ -1,0 +1,263 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Stockfish — The Fin-fluencer</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            background: #0a0a12;
+            color: #e2e8f0;
+            font-family: 'Courier New', monospace;
+            display: flex;
+            height: 100vh;
+            overflow: hidden;
+        }
+        .sidebar {
+            width: 380px;
+            background: #111122;
+            border-right: 1px solid #1e293b;
+            display: flex;
+            flex-direction: column;
+            padding: 20px;
+            gap: 16px;
+            overflow-y: auto;
+        }
+        .main {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+        .camera-feed {
+            width: 100%;
+            max-width: 960px;
+            border: 2px solid #1e293b;
+            border-radius: 8px;
+            box-shadow: 0 0 40px rgba(34, 197, 94, 0.08);
+        }
+        h1 {
+            font-size: 22px;
+            color: #22c55e;
+            text-align: center;
+            letter-spacing: 2px;
+        }
+        h2 {
+            font-size: 14px;
+            color: #64748b;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            margin-bottom: 4px;
+        }
+        .stats-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+        }
+        .stat-card {
+            background: #1a1a2e;
+            border: 1px solid #1e293b;
+            border-radius: 6px;
+            padding: 14px;
+            text-align: center;
+        }
+        .stat-value {
+            font-size: 28px;
+            font-weight: bold;
+        }
+        .stat-label {
+            font-size: 11px;
+            color: #64748b;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin-top: 4px;
+        }
+        .buy { color: #22c55e; }
+        .sell { color: #ef4444; }
+        .trades-list {
+            flex: 1;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+        .trade-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background: #1a1a2e;
+            border-left: 3px solid #334155;
+            border-radius: 4px;
+            padding: 10px 12px;
+            font-size: 13px;
+        }
+        .trade-row.buy { border-left-color: #22c55e; }
+        .trade-row.sell { border-left-color: #ef4444; }
+        .trade-symbol { font-weight: bold; font-size: 15px; }
+        .trade-decision { font-size: 11px; text-transform: uppercase; letter-spacing: 1px; }
+        .trade-price { color: #94a3b8; }
+        .status-dot {
+            display: inline-block;
+            width: 8px; height: 8px;
+            border-radius: 50%;
+            margin-right: 6px;
+        }
+        .status-dot.live { background: #22c55e; box-shadow: 0 0 8px #22c55e; animation: pulse 2s infinite; }
+        .status-dot.closed { background: #ef4444; box-shadow: 0 0 6px #ef4444; }
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.4; }
+        }
+        .market-badge {
+            display: inline-block;
+            padding: 4px 10px;
+            border-radius: 4px;
+            font-size: 11px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+        .market-open { background: #064e3b; color: #22c55e; border: 1px solid #22c55e; }
+        .market-closed { background: #450a0a; color: #ef4444; border: 1px solid #ef4444; }
+        .last-trade {
+            background: #1a1a2e;
+            border: 1px solid #334155;
+            border-radius: 6px;
+            padding: 14px;
+        }
+        .last-trade .big {
+            font-size: 20px;
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body>
+    <div class="sidebar">
+        <h1>STOCKFISH</h1>
+
+        <div>
+            <span id="marketBadge" class="market-badge market-closed">
+                <span class="status-dot closed"></span> CHECKING...
+            </span>
+        </div>
+
+        <div>
+            <h2>Trading Stats</h2>
+            <div class="stats-grid">
+                <div class="stat-card">
+                    <div class="stat-value" id="totalTrades">0</div>
+                    <div class="stat-label">Total Trades</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value buy" id="totalBuys">0</div>
+                    <div class="stat-label">Buys</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value sell" id="totalSells">0</div>
+                    <div class="stat-label">Sells</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value" id="ratio">—</div>
+                    <div class="stat-label">B/S Ratio</div>
+                </div>
+            </div>
+        </div>
+
+        <div id="lastTrade" class="last-trade" style="display:none;">
+            <div style="font-size:11px;color:#64748b;text-transform:uppercase;letter-spacing:1px;">Last Trade</div>
+            <div class="big" id="lastTradeInfo">—</div>
+        </div>
+
+        <div>
+            <h2>Recent Trades</h2>
+            <div class="trades-list" id="tradesList">
+                <div style="color:#475569;text-align:center;padding:20px;">No trades yet</div>
+            </div>
+        </div>
+
+        <div style="font-size:10px;color:#475569;text-align:center;margin-top:auto;">
+            The Fin-fluencer BOT &mdash; refresh: <span id="refreshCounter">3</span>s
+        </div>
+    </div>
+
+    <div class="main">
+        <div style="position:relative;display:inline-block;width:100%;max-width:960px;">
+            <img class="camera-feed" src="/video_feed" alt="Camera Feed" style="width:100%;">
+            <div id="liveDecision"
+                 style="position:absolute;bottom:20px;left:20px;font-size:22px;font-weight:bold;
+                        background:rgba(0,0,0,0.7);padding:8px 16px;border-radius:6px;
+                        color:#fff;letter-spacing:2px;">
+                HOLD
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let counter = 3;
+
+        async function refresh() {
+            try {
+                const res = await fetch('/api/stats');
+                const stats = await res.json();
+
+                document.getElementById('totalTrades').textContent = stats.total_trades;
+                document.getElementById('totalBuys').textContent = stats.buys;
+                document.getElementById('totalSells').textContent = stats.sells;
+                document.getElementById('ratio').textContent =
+                    stats.sells > 0 ? (stats.buys / stats.sells).toFixed(2) : '—';
+
+                if (stats.last_trade) {
+                    const lt = stats.last_trade;
+                    document.getElementById('lastTrade').style.display = 'block';
+                    const cls = lt.decision === 'BUY' ? 'buy' : 'sell';
+                    document.getElementById('lastTradeInfo').innerHTML =
+                        `<span class="${cls}">${lt.decision}</span> ${lt.stock} @ $${lt.price || '???'}`;
+                }
+
+                const marketRes = await fetch('/api/market');
+                if (marketRes.ok) {
+                    const mkt = await marketRes.json();
+                    const badge = document.getElementById('marketBadge');
+                    if (mkt.market_open) {
+                        badge.className = 'market-badge market-open';
+                        badge.innerHTML = '<span class="status-dot live"></span> MARKET OPEN';
+                    } else {
+                        badge.className = 'market-badge market-closed';
+                        badge.innerHTML = `<span class="status-dot closed"></span> ${mkt.message || 'CLOSED'}`;
+                    }
+                }
+            } catch(e) {
+                console.error('Refresh failed:', e);
+            }
+
+            counter = 3;
+            document.getElementById('refreshCounter').textContent = counter;
+        }
+
+        setInterval(() => {
+            counter--;
+            document.getElementById('refreshCounter').textContent = counter;
+            if (counter <= 0) refresh();
+        }, 1000);
+
+        refresh();
+
+        async function refreshLive() {
+            try {
+                const res = await fetch('/api/live');
+                const data = await res.json();
+                const el = document.getElementById('liveDecision');
+                el.textContent = data.decision;
+                if (data.decision === 'BUY') el.style.color = '#22c55e';
+                else if (data.decision === 'SELL') el.style.color = '#ef4444';
+                else el.style.color = '#fff';
+            } catch(e) {}
+        }
+
+        setInterval(refreshLive, 500);
+        refreshLive();
+    </script>
+</body>
+</html>
